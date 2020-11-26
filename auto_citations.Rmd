@@ -1,11 +1,15 @@
 ---
-title: "Auto-citation microbio"
+title: "Auto-citation HCR microbio"
 output:
   html_notebook:
-  theme: cosmo
-  paged.print: true
-  number_sections: true
-  smart: true
+    theme: cosmo
+    highlight: tango
+    toc: yes
+    toc_float: true
+    toc_depth: 4
+    paged.print: true
+    number_sections: true
+    smart: true
 ---
 
 ```{r}
@@ -165,6 +169,10 @@ Variables :
 - `france` : auteur affilié en France selon Clarivate ;
 
 
+```{r}
+write_csv(d, file = here("data", "merged_datacsv"))
+```
+
 ## Statistiques par auteur
 Nombre de publications par auteur
 
@@ -207,7 +215,7 @@ Une publication peut être présente plusieurs fois si plusieurs HCR
 ```{r}
 stat_pub <- d %>% 
   filter(!is.na(auto_cit)) %>% 
-  group_by(initials, author_field, france, pub_id, pub_journal) %>% 
+  group_by(initials, author_field, france, pub_id, pub_year, pub_journal) %>% 
   summarise(
     pub_n_auto_cit = sum(auto_cit_x),
     pub_n_cit = n(),
@@ -222,7 +230,6 @@ stat_pub <- d %>%
     pub_p_auto_cit_x = pub_n_auto_cit_x / pub_n_cit_x
   ) %>% 
   ungroup()
-
 ```
 
 # Figures
@@ -269,7 +276,7 @@ stat_pub %>%
   count(author_field, n_authors) %>% 
   ggplot(aes(x = n_authors, y = n, fill = author_field)) + 
   geom_col() +
-  scale_fill_brewer(palette = "Set2") +
+  scale_fill_brewer("", palette = "Set2") +
   theme_bw()
 ```
 
@@ -290,7 +297,7 @@ d %>%
   # distinct(author_field, n_authors, france) %>%
   count(france, author_field) %>% 
   ggplot(aes(x = n, fill = france)) + 
-  geom_histogram() +
+  geom_histogram(color = "black") +
   scale_fill_brewer(palette = "Set1") +
   theme_bw()
 ```
@@ -324,7 +331,7 @@ stat_author %>%
   filter(france) %>% 
   ggplot(aes(x = p_auto_cit, fill = author_field)) +
   geom_histogram() +
-  scale_fill_brewer(palette = "Set1") +
+  scale_fill_brewer("", palette = "Set2") +
   theme_bw()
 ```
 
@@ -341,12 +348,14 @@ stat_author %>%
 
 
 stat_author %>% 
-  ggplot(aes(x = n_auto_cit, y = n_other_cit, color = france)) +
+  ggplot(aes(x = n_auto_cit, y = n_other_cit, color = author_field)) +
+  # ggplot(aes(x = n_auto_cit, y = n_other_cit)) +
   geom_point(shape = "+", size = 4, alpha = .8) +
   # scale_x_continuous(trans = "log10") +
   # scale_y_continuous(trans = "log10") +
-  scale_color_brewer(palette = "Set1") +
-  theme_bw()
+  # scale_color_brewer(palette = "Set1") +
+  theme_bw() +
+  theme(legend.position = "none")
 ```
 
 
@@ -355,11 +364,14 @@ Nombre d'auto-citation HCR vs. autres par HCR (France)
 stat_author %>% 
   filter(france) %>% 
   ggplot(aes(x = n_auto_cit, y = n_other_cit, color = author_field)) +
-  geom_point() +
+  geom_point(shape = "+", size = 5) +
   # scale_x_continuous(trans = "log10") +
   # scale_y_continuous(trans = "log10") +
-  scale_fill_brewer(palette = "Set1") +
+  scale_fill_brewer(palette = "Set2") +
+  labs(x = "Auto-citations (highly-cited)", y = "Autres citations", color = "") +
   theme_bw()
+
+ggsave("fig3.png", width = 12, height = 8, units = "cm")
 ```
 
 Proportion d'auto-citation HCR par publication (France)
@@ -386,12 +398,17 @@ stat_author %>%
 Nombre d'auto-citation globale vs. autres par HCR
 ```{r}
 stat_author %>% 
-  ggplot(aes(x = n_auto_cit_x, y = n_other_cit_x, color = france)) +
-  geom_point() +
+  # ggplot(aes(x = n_auto_cit_x, y = n_other_cit_x, color = france)) +
+  ggplot(aes(x = n_auto_cit_x, y = n_other_cit_x, color = author_field)) +
+  geom_point(shape = "+", size = 4, alpha = .8) +
   # scale_x_continuous(trans = "log10") +
   # scale_y_continuous(trans = "log10") +
   scale_fill_brewer(palette = "Set1") +
-  theme_bw()
+  theme_bw() +
+  labs(x = "Auto-citations (tout auteur)", y = "Autres citations") +
+  theme(legend.position = "none")
+
+ggsave("fig1.png", width = 12, height = 8, units = "cm")
 ```
 
 
@@ -400,11 +417,14 @@ Nombre d'auto-citation globale vs. autres par HCR (France)
 stat_author %>% 
   filter(france) %>% 
   ggplot(aes(x = n_auto_cit_x, y = n_other_cit_x, color = author_field)) +
-  geom_point() +
+  geom_point(shape = "+", size = 5) +
   # scale_x_continuous(trans = "log10") +
   # scale_y_continuous(trans = "log10") +
-  scale_fill_brewer(palette = "Set1") +
+  scale_fill_brewer(palette = "Set2") +
+  labs(x = "Auto-citations (tout auteur)", y = "Autres citations", color = "") +
   theme_bw()
+
+ggsave("fig2.png", width = 12, height = 8, units = "cm")
 ```
 
 Proportion d'auto-citation globale par publication (France)
@@ -417,5 +437,20 @@ stat_pub %>%
   theme_bw()
 ```
 
+# Comparaison ratios
+```{r}
 
+stat_author %>% 
+  filter(france) %>% 
+  group_by(n_other_cit > 1e4) %>% 
+  mutate(
+    ratio1 = n_other_cit_x / n_auto_cit_x,
+    ratio2 = n_other_cit / n_auto_cit
+    ) %>% 
+  summarise(
+    mean(ratio1), median(ratio1), min(ratio1), max(ratio1),
+    mean(ratio2), median(ratio2), min(ratio2), max(ratio2),
+    mean(ratio2/ratio1), median(ratio2/ratio1), min(ratio2/ratio1), max(ratio2/ratio1),
+    )
 
+```
