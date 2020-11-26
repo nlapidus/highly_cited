@@ -1,0 +1,134 @@
+author_id,first_name,last_name
+1,Frank M.,Aarestrup
+2,Dan I.,Andersson
+3,Fredrik,Backhed
+4,Andreas J.,Baeumler
+5,Dan H.,Barouch
+6,Rodolphe,Barrangou
+7,Ralf,Bartenschlager
+8,Paul D.,Bieniasz
+9,Pamela J.,Bjorkman
+10,Jeffrey C.,Boyington
+11,Sylvain,Brisse
+12,Stan J. J.,Brouns
+13,Dennis R.,Burton
+14,Frederic D.,Bushman
+15,J. Gregory,Caporaso
+16,Jongsik,Chun
+17,Davide,Corti
+18,Derrick W.,Crook
+19,Gautam,Dantas
+20,Willem M.,de Vos
+21,Michael S.,Diamond
+22,Gordon,Dougan
+23,Damian C.,Ekiert
+24,Noah,Fierer
+25,Peter C.,Fineran
+26,B. Brett,Finlay
+27,Harry J.,Flint
+28,Ron A. M.,Fouchier
+29,Jed A.,Fuhrman
+30,George F.,Gao
+31,Adolfo,Garcia-Sastre
+32,Wendy S.,Garrett
+33,Jack A.,Gilbert
+34,Antonio,González
+35,Julia K.,Goodrich
+36,Jaap,Goudsmit
+37,Barney S.,Graham
+38,Beatrice H.,Hahn
+39,Eva,Harris
+40,Simon I.,Hay
+41,Barton F.,Haynes
+42,Edward C.,Holmes
+43,Philippe,Horvath
+44,Gary B.,Huffnagle
+45,Philip,Hugenholtz
+46,Curtis,Huttenhower
+47,Janet K.,Jansson
+48,Jae Ung,Jung
+49,Yoshihiro,Kawaoka
+50,Brandon F.,Keele
+51,Staffan,Kjelleberg
+52,Florian,Klein
+53,Rob,Knight
+54,Dan,Knights
+55,Wayne C.,Koff
+56,Eugene V.,Koonin
+57,Omry,Koren
+58,Florian,Krammer
+59,Antonio,Lanzavecchia
+60,Christian L.,Lauber
+61,Kim,Lewis
+62,Mark G.,Lewis
+63,Ruth E.,Ley
+64,Jeffrey D.,Lifson
+65,W. Ian,Lipkin
+66,Jinyan,Liu
+67,Petra,Louis
+68,Derek R.,Lovley
+69,Catherine A.,Lozupone
+70,Kira S.,Makarova
+71,Ryan,McBride
+72,Daniel,McDonald
+73,Sylvain,Moineau
+74,Walther,Mothes
+75,Hugo,Mouquet
+76,Gary J.,Nabel
+77,Mihai G.,Netea
+78,Gabriele,Neumann
+79,Michel C.,Nussenzweig
+80,Albert D. M. E.,Osterhaus
+81,Peter,Palese
+82,Julian,Parkhill
+83,James C.,Paulson
+84,Malik,Peiris
+85,L.,Philippot
+86,Theodore C.,Pierson
+87,Alexander,Ploss
+88,Pascal,Poignard
+89,Leo Lit Man,Poon
+90,Cheng-Feng,Qin
+91,Jeroen,Raes
+92,Eva G.,Rakasz
+93,Andrew,Rambaut
+94,Didier,Raoult
+95,Charles M.,Rice
+96,Forest,Rohwer
+97,Reynolds Paul,Ross
+98,Ramon,Rossello-Mora
+99,Colin A.,Russell
+100,Federica,Sallusto
+101,Johannes F.,Scheid
+102,William R.,Schief
+103,John W.,Schoggins
+104,Olivier,Schwartz
+105,Michael S.,Seaman
+106,George M.,Shaw
+107,Wei,Shi
+108,Melissa D.,Simek
+109,Peter,Simmonds
+110,Joseph G.,Sodroski
+111,Justin L.,Sonnenburg
+112,Matthew B.,Sullivan
+113,Mehul S.,Suthar
+114,Susannah G.,Tringe
+115,Shashank,Tripathi
+116,John,van der Oost
+117,Arvind,Varsani
+118,Jan,Vinje
+119,Herbert W.,Virgin
+120,Joerg,Vogel
+121,Michael,Wagner
+122,Bruce D.,Walker
+123,Laura M.,Walker
+124,Jens,Walter
+125,William Anthony,Walters
+126,Anthony P.,West
+127,Ian A.,Wilson
+128,Ramnik J.,Xavier
+129,Zhi-Yong,Yang
+130,Vincent B.,Young
+131,Tong,Zhang
+132,Liping,Zhao
+133,Jizhong,Zhou
