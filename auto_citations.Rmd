@@ -1,0 +1,421 @@
+---
+title: "Auto-citation microbio"
+output:
+  html_notebook:
+  theme: cosmo
+  paged.print: true
+  number_sections: true
+  smart: true
+---
+
+```{r}
+pacman::p_load(tidyverse, here, europepmc, writexl, readxl)
+```
+
+Pour exploiter directement les données sans refaire l'extraction, passer à la section "Data management".
+
+# Préparation des données
+## Sélection des auteurs
+Fichier source : ["2020_HCR.xlsx"](https://recognition.webofscience.com/awards/highly-cited/2020/) (Category = Microbiology), enregistré sous "2020_hcr_microbio.csv".
+
+```{r}
+hcr_2020_microbio <- read_csv(here("data", "2020_hcr_microbio.csv")) %>% 
+  mutate(
+    last_name = str_replace(last_name, "Baeumler", "Baumler"),
+    author_field = str_c(last_name, " ", str_remove_all(first_name, "[:lower:]| |\\.|-"))
+  )
+```
+
+## Importation des publications depuis [Europe PMC](https://europepmc.org/)
+```{r}
+get_pubs <- function(name, years) {
+  query <- str_c("AUTH:\"", name, "\" AND (", str_c("PUB_YEAR:", years, collapse = " OR "), ")")
+  print(query)
+  epmc_search(query, limit = 1e5) 
+}
+```
+
+Enregistrement format `.rds`
+```{r}
+for (.i in seq(nrow(hcr_2020_microbio))) {
+  .author_field <- hcr_2020_microbio$author_field[.i]
+  .pubs <- get_pubs(.author_field, 2009:2019)
+  saveRDS(.pubs, file = here("data", "pubs", .author_field))
+}
+```
+
+Lecture fichiers `.rds` et écriture format `.csv`
+```{r}
+all_pubs <- hcr_2020_microbio$author_field %>%
+  map_dfr(
+    ~readRDS(here("data", "pubs", .x)) %>%
+      mutate(
+        author_field = .x,
+        name = str_replace(author_field, "(^.*) [A-Z]+$", "\\1")
+      )
+  )
+```
+
+```{r}
+write_csv(all_pubs, file = here("data", "all_pubs.csv"))
+```
+
+## Importation des citations depuis [Europe PMC](https://europepmc.org/)
+Enregistrement format `.rds`
+```{r}
+for (.i in seq(nrow(all_pubs))) {
+  if(.i %% 1e3 == 0) print(.i)
+  .pub_id <- all_pubs$id[.i]
+  if (!is.na(.pub_id)) {
+    .citations <- epmc_citations(ext_id = .pub_id, data_src = "med", limit = 1e5)
+    saveRDS(.citations, file = here("data", "citations", .pub_id))
+  }
+}
+```
+
+Lecture fichiers `.rds` et écriture format `.csv`
+```{r}
+all_citations <- dir(here("data", "citations")) %>%
+  map_dfr(~{
+    .cit <- readRDS(here("data", "citations", .x))
+    if (!is.null(.cit)) .cit %>% mutate(citing = .x)
+  })
+```
+
+```{r}
+write_csv(all_citations, file = here("data", "all_citations.csv"))
+```
+
+# Data management
+## Importation des donnés depuis fichiers `.csv`
+```{r}
+all_pubs <- read_csv( here("data", "all_pubs.csv"))
+all_citations <- read_csv(here("data", "all_citations.csv"))
+```
+
+## Données agrégées
+Nombre de publications par auteur
+```{r}
+author_counts <- all_pubs %>% 
+  count(author_field)
+```
+
+
+NB :
+
+- élimination des auteurs avec > 5000 publications (homonymes ?)
+- élimination des publis avec > 50 publications (non spécifiques ?)
+
+```{r}
+str_cap <- function(x) {
+  str_c(toupper(str_sub(x, 1, 1)), str_sub(x, 2, -1))
+}
+
+d <- all_pubs %>% 
+  # slice(seq(5e3)) %>% 
+  anti_join(author_counts %>% filter(n > 5e3), by = "author_field") %>% 
+  left_join(all_citations, by = c("id" = "citing")) %>% 
+  select(
+    pub_id = id, 
+    author_field, 
+    author_name = name,
+    pub_year = pubYear.x, 
+    pub_journal = journalTitle, 
+    pub_authors = authorString.x,
+    cit_authors = authorString.y, 
+    cit_journal = journalAbbreviation
+  ) %>% 
+  mutate(
+    across(c(pub_authors, cit_authors), ~stringi::stri_trans_general(.x, "Latin-ASCII")),
+    n_authors = str_count(pub_authors, ",") + 1,
+    # auto_cit = str_detect(cit_authors, author_name),
+    auth_search =  str_replace(author_field, "(^.*) ([A-Z])[A-Za-z]*\\.*$", "\\1 \\2"),
+    auto_cit = str_detect(cit_authors, auth_search) | str_detect(cit_authors, str_cap(auth_search)),
+    france = author_field %in% c("Brisse S", "Horvath P", "Mouquet H", "Philippot L", "Poignard P", "Raoult D", "Schwartz O"),
+    initials = str_replace(author_field, "(^.).* (.).*$", "\\2\\1") %>% toupper()
+  ) %>% 
+  select(-auth_search) %>% 
+  filter(!is.na(author_name), n_authors <= 50) %>% 
+  mutate(
+    auto_cit_x = auto_cit | pmap_lgl(
+      ., 
+      function(pub_authors, cit_authors, ...) {
+        .pa <- str_split(pub_authors, ", ")[[1]] %>% str_replace("(^.*) ([A-Z])[A-Za-z]*\\.*$", "\\1 \\2") %>% str_cap()
+        .ca <- str_split(cit_authors, ", ")[[1]] %>% str_replace("(^.*) ([A-Z])[A-Za-z]*\\.*$", "\\1 \\2") %>% str_cap()
+        any(.pa %in% .ca)
+      }
+    )
+  )
+```
+
+Variables :
+
+- `pub_id` : identification de la publication citée ;
+- `author_field` : nom de l'auteur HCR ;
+- `author_name` : nom simplifié de l'auteur HCR ;
+- `initials` : initiales de l'auteur HCR ;
+- `pub_year` : année de la publication citée ;
+- `pub_journal` : journal de la publication citée ;
+- `pub_authors` : auteurs de la publication citée ;
+- `n_authors` : nombre d'auteurs de la publication citée ;
+- `cit_authors` : auteurs de la citation ;
+- `cit_journal` : journal de la citation ;
+- `auto_cit` : auto-citation par l'auteur HCR ;
+- `auto_cit_x` : auto-citation par un auteur ;
+- `france` : auteur affilié en France selon Clarivate ;
+
+
+## Statistiques par auteur
+Nombre de publications par auteur
+
+```{r}
+stat_author <- d %>% 
+  filter(!is.na(auto_cit)) %>% 
+  group_by(initials, author_field, france) %>% 
+  summarise(
+    n_auto_cit = sum(auto_cit),
+    n_auto_cit_x = sum(auto_cit_x),
+    n_cit = n()
+  ) %>% 
+  mutate(
+    n_other_cit = n_cit - n_auto_cit,
+    p_auto_cit = n_auto_cit / n_cit,
+    n_other_cit_x = n_cit - n_auto_cit_x,
+    p_auto_cit_x = n_auto_cit_x / n_cit
+  ) %>% 
+  left_join(
+    d %>%
+      filter(!is.na(auto_cit)) %>% 
+      group_by(author_field) %>% 
+      distinct(pub_id) %>% 
+      summarise(n_pub = n()),
+    by = "author_field"
+  ) %>% 
+  mutate(
+    n_cit_per_pub = n_cit / n_pub,
+    n_auto_cit_per_pub = n_auto_cit / n_pub,
+    n_other_cit_per_pub = n_other_cit / n_pub,
+    n_auto_cit_per_pub_x = n_auto_cit_x / n_pub,
+    n_other_cit_per_pub_x = n_other_cit_x / n_pub
+  ) %>% 
+  ungroup()
+```
+
+
+## Statistiques par publication
+Une publication peut être présente plusieurs fois si plusieurs HCR
+```{r}
+stat_pub <- d %>% 
+  filter(!is.na(auto_cit)) %>% 
+  group_by(initials, author_field, france, pub_id, pub_journal) %>% 
+  summarise(
+    pub_n_auto_cit = sum(auto_cit_x),
+    pub_n_cit = n(),
+    pub_n_auto_cit_x = sum(auto_cit_x),
+    pub_n_cit_x = n(),
+    n_authors = mean(n_authors)
+  ) %>% 
+  mutate(
+    pub_n_other_cit = pub_n_cit - pub_n_auto_cit,
+    pub_p_auto_cit = pub_n_auto_cit / pub_n_cit,
+    pub_n_other_cit_x = pub_n_cit_x - pub_n_auto_cit_x,
+    pub_p_auto_cit_x = pub_n_auto_cit_x / pub_n_cit_x
+  ) %>% 
+  ungroup()
+
+```
+
+# Figures
+
+## Publications par HCR
+```{r}
+stat_pub %>% 
+  distinct(pub_id, author_field, france) %>% 
+  count(france, author_field) %>% 
+  ggplot(aes(x = n, fill = france)) + 
+  geom_histogram(color = "black") +
+  scale_fill_brewer(palette = "Set2") +
+  theme_bw()
+```
+
+```{r}
+stat_pub %>% 
+  filter(france) %>% 
+  distinct(pub_id, author_field, france) %>% 
+  count(france, author_field) %>% 
+  ggplot(aes(x = n, fill = author_field)) + 
+  geom_histogram(color = "black") +
+  scale_fill_brewer(palette = "Set2") +
+  theme_bw()
+```
+
+
+## Nombre d'auteurs par publication
+```{r}
+stat_pub %>% 
+  distinct(pub_id, author_field, n_authors, france) %>%
+  count(france, n_authors) %>% 
+  ggplot(aes(x = n_authors, y = n, fill = france)) + 
+  geom_col() +
+  scale_fill_brewer(palette = "Set1") +
+  theme_bw()
+```
+
+France
+```{r}
+stat_pub %>% 
+  filter(france) %>% 
+  distinct(pub_id, author_field, n_authors, france) %>%
+  count(author_field, n_authors) %>% 
+  ggplot(aes(x = n_authors, y = n, fill = author_field)) + 
+  geom_col() +
+  scale_fill_brewer(palette = "Set2") +
+  theme_bw()
+```
+
+```{r}
+stat_pub %>% 
+  filter(france) %>% 
+  distinct(pub_id, author_field, n_authors) %>% 
+  count(author_field, n_authors) %>%
+  ggplot(aes(x = author_field, y = n_authors)) + 
+  geom_boxplot() +
+  theme_bw()
+```
+
+
+## Citations par auteur
+```{r}
+d %>% 
+  # distinct(author_field, n_authors, france) %>%
+  count(france, author_field) %>% 
+  ggplot(aes(x = n, fill = france)) + 
+  geom_histogram() +
+  scale_fill_brewer(palette = "Set1") +
+  theme_bw()
+```
+
+France
+
+```{r}
+d %>% 
+  filter(france) %>% 
+  count(author_field) %>% 
+  ggplot(aes(x = n, fill = author_field)) + 
+  geom_histogram() +
+  scale_fill_brewer(palette = "Set2") +
+  theme_bw()
+```
+
+
+## Auto-citations
+Proportion d'auto-citation HCR par HCR
+```{r}
+stat_author %>% 
+  ggplot(aes(x = p_auto_cit, fill = france)) +
+  geom_histogram(color = "black") +
+  scale_fill_brewer(palette = "Set1") +
+  theme_bw()
+```
+
+France
+```{r}
+stat_author %>% 
+  filter(france) %>% 
+  ggplot(aes(x = p_auto_cit, fill = author_field)) +
+  geom_histogram() +
+  scale_fill_brewer(palette = "Set1") +
+  theme_bw()
+```
+
+Nombre d'auto-citation HCR vs. autres par HCR
+```{r}
+stat_author %>% 
+  ungroup() %>% 
+  summarise(
+    mean(p_auto_cit), 
+    sum(n_auto_cit) / sum(n_cit), 
+    mean(p_auto_cit_x), 
+    sum(n_auto_cit_x) / sum(n_cit)
+    )
+
+
+stat_author %>% 
+  ggplot(aes(x = n_auto_cit, y = n_other_cit, color = france)) +
+  geom_point(shape = "+", size = 4, alpha = .8) +
+  # scale_x_continuous(trans = "log10") +
+  # scale_y_continuous(trans = "log10") +
+  scale_color_brewer(palette = "Set1") +
+  theme_bw()
+```
+
+
+Nombre d'auto-citation HCR vs. autres par HCR (France)
+```{r}
+stat_author %>% 
+  filter(france) %>% 
+  ggplot(aes(x = n_auto_cit, y = n_other_cit, color = author_field)) +
+  geom_point() +
+  # scale_x_continuous(trans = "log10") +
+  # scale_y_continuous(trans = "log10") +
+  scale_fill_brewer(palette = "Set1") +
+  theme_bw()
+```
+
+Proportion d'auto-citation HCR par publication (France)
+```{r}
+stat_pub %>% 
+  filter(france, pub_n_cit >= 10) %>% 
+  ggplot(aes(y = pub_p_auto_cit, fill = author_field)) +
+  geom_boxplot() +
+  scale_fill_brewer(palette = "Set2") +
+  theme_bw()
+```
+
+
+Proportion d'auto-citation globale par HCR
+```{r}
+stat_author %>% 
+  ggplot(aes(x = p_auto_cit_x, fill = france)) +
+  geom_histogram(color = "black") +
+  scale_fill_brewer(palette = "Set1") +
+  theme_bw()
+```
+
+
+Nombre d'auto-citation globale vs. autres par HCR
+```{r}
+stat_author %>% 
+  ggplot(aes(x = n_auto_cit_x, y = n_other_cit_x, color = france)) +
+  geom_point() +
+  # scale_x_continuous(trans = "log10") +
+  # scale_y_continuous(trans = "log10") +
+  scale_fill_brewer(palette = "Set1") +
+  theme_bw()
+```
+
+
+Nombre d'auto-citation globale vs. autres par HCR (France)
+```{r}
+stat_author %>% 
+  filter(france) %>% 
+  ggplot(aes(x = n_auto_cit_x, y = n_other_cit_x, color = author_field)) +
+  geom_point() +
+  # scale_x_continuous(trans = "log10") +
+  # scale_y_continuous(trans = "log10") +
+  scale_fill_brewer(palette = "Set1") +
+  theme_bw()
+```
+
+Proportion d'auto-citation globale par publication (France)
+```{r}
+stat_pub %>% 
+  filter(france, pub_n_cit >= 10) %>% 
+  ggplot(aes(y = pub_p_auto_cit_x, fill = author_field)) +
+  geom_boxplot() +
+  scale_fill_brewer(palette = "Set2") +
+  theme_bw()
+```
+
+
+
